@@ -54,16 +54,17 @@ An architecture diagram of the ingestion process, described in detail below S3 a
 Replace <RoleName> with the desired name of the role , Replace <BUCKET_NAME>/path/to/logs/ with the path to your S3 Access logs as set in the previous step
 
   :red_circle: paste below code in snowflake 
-  
+```  
  create STORAGE INTEGRATION s3_int_s3_access_logs
   TYPE = EXTERNAL_STAGE
   STORAGE_PROVIDER = S3
   ENABLED = TRUE
   STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::<AWS_ACCOUNT_NUMBER>:role/<RoleName>'
   STORAGE_ALLOWED_LOCATIONS = ('s3://<BUCKET_NAME>/<PREFIX>/');
-
+```
+```
 DESC INTEGRATION s3_int_s3_access_logs;
- 
+```
  
 :red_circle:   Take note of STORAGE_AWS_IAM_USER_ARN and STORAGE_AWS_EXTERNAL_ID
 
@@ -88,19 +89,19 @@ A screenshot showing the result of describing an integration. STORAGE_AWS_IAM_US
 
 
 Export the following variables, replacing the values with your own
-
+```
 export BUCKET_NAME='<BUCKET_NAME>'
 export PREFIX='<PREFIX>' # no leading or trailing slashes
 export ROLE_NAME='<ROLE_NAME>'
 export STORAGE_AWS_IAM_USER_ARN='<STORAGE_AWS_IAM_USER_ARN>'
 export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
- 
- :red_circle: paste this code in aws cloudshell 
+```
+:red_circle: paste this code in aws cloudshell 
 
- <img width="959" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/bd5b2399-eba3-4241-8644-e9eb5388ec2a">
+<img width="959" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/bd5b2399-eba3-4241-8644-e9eb5388ec2a">
 
 
- <img width="680" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/6307ac92-a046-4a8f-90a6-4d0f54630251">
+<img width="680" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/6307ac92-a046-4a8f-90a6-4d0f54630251">
 
 
 ## 5  Create  policy in AWS
@@ -117,9 +118,9 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
  <img width="688" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/2ef0c0d8-e2e7-4d29-b269-ca65dcd3cfeb">
 
 
-   :red_circle:  add your  {STORAGE_AWS_IAM_USER_ARN}
+:red_circle:  add your  {STORAGE_AWS_IAM_USER_ARN}
 
-      
+```    
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -138,7 +139,7 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
         }
     ]
 }
-
+```
 ## 5.1 Create an inline-policy to allow snowflake to add and remove files from S3
 
 1. IAM -> Roles -> s3-access-logs
@@ -146,7 +147,7 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
 2. go to permission -> create permission -> cretae new inline policy
 
  
-   <img width="673" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/f8c98726-d562-4a49-b209-96ecc6f2f369">
+<img width="673" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/f8c98726-d562-4a49-b209-96ecc6f2f369">
 
    
 3. select JSON format
@@ -156,10 +157,9 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
 
 4. paste here code
 
- <img width="866" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/67f8a26e-e290-4eea-9cdc-8054d384af04">
+<img width="866" alt="image" src="https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/67f8a26e-e290-4eea-9cdc-8054d384af04">
 
-
-
+```
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -191,110 +191,85 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
         }
     ]
 }
+```
+ 
+ ## 6.Prepare Snowflake to receive data
 
-## 6. Prepare Snowflake to receive data
-
-
- This quickstart requires a warehouse to perform computation and ingestion. We recommend creating a separate warehouse for security related analytics if one does not exist. The following will create a medium sized single cluster 
+This quickstart requires a warehouse to perform computation and ingestion. We recommend creating a separate warehouse for security related analytics if one does not exist. The following will create a medium sized single cluster 
  warehouse that suspends after 1 minute of inactivity. For production workloads a larger warehouse will likely be required.
-
+```
  create warehouse security_quickstart with 
-  
  WAREHOUSE_SIZE = MEDIUM 
- 
  AUTO_SUSPEND = 60;
-
-
+```
 S3 Access logs are in a non-standard format which we will be parsing with a custom function later on. For now we will create a file format to import logs unparsed.
-
-
+```
 CREATE FILE FORMAT IF NOT EXISTS TEXT_FORMAT 
-
 TYPE = 'CSV' 
-
 FIELD_DELIMITER = NONE
-
 SKIP_BLANK_LINES = TRUE
-
 ESCAPE_UNENCLOSED_FIELD = NONE;
-
-
+```
 Create External Stage using the storage integration and test that snowflake can test files. Make sure you include the trailing slash if using a prefix.
-
-
+```
 create stage s3_access_logs
- 
-  url = 's3://<BUCKET_NAME>/<PREFIX>/'
-  
-  storage_integration = s3_int_s3_access_logs
+   url = 's3://<BUCKET_NAME>/<PREFIX>/'
+   storage_integration = s3_int_s3_access_logs;
+```
 
-;
-
-
+```
 list @s3_access_logs;
-
+```
 
 ![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/8a0ac388-47a0-4098-88f9-c5ed4a2ced83)
 
-
+```
 Create a table to store the raw logs
-
 create table s3_access_logs_staging(
-  
-    raw TEXT,
-   
-    timestamp DATETIME
-);
-
+      raw TEXT,
+       timestamp DATETIME);
+```
 Create a stream on the table to track changes, this will be used to trigger processing later on
-
-
+```
 create stream s3_access_logs_stream on table s3_access_logs_staging;
-
 Test Injection from External Stage
-
 copy into s3_access_logs_staging from (
-
 SELECT 
-
   STG.$1,
-  
-  current_timestamp() as timestamp 
-
+    current_timestamp() as timestamp 
 FROM @s3_access_logs (FILE_FORMAT => TEXT_FORMAT) STG
-
 );
-
+```
 
 ![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/75c7cfdd-05b8-4728-871d-77c8c3036d03)
 
 
 Verify the logs were loaded properly
+```
+ select * from public.s3_access_logs_staging limit 5;
+```
 
-
-#### select * from public.s3_access_logs_staging limit 5;
-
-
-## 7 6. Setup Snowpipe for continuous loading.
+## 7. Setup Snowpipe for continuous loading.
 
 
  The following instructions depend on a Snowflake account running on AWS. Accounts running on other cloud providers may invoke snowpipe from a rest endpoint. https://docs.snowflake.com/en/user-guide/data-load-snowpipe-rest.html
 
 Configure the Snowflake snowpipe 
-
-
+```
 create pipe public.s3_access_logs_pipe auto_ingest=true as
   copy into s3_access_logs_staging from (
     SELECT 
       STG.$1,
       current_timestamp() as timestamp 
   FROM @s3_access_logs (FILE_FORMAT => TEXT_FORMAT) STG
-)
-;
+);
+```
 
 Show pipe to retrieve SQS queue ARN
 
- show pipes;
+```
+show pipes;
+```
 
 ![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/49690f9f-72a1-4389-93c7-0b6acfea6bc2)
 
@@ -330,18 +305,20 @@ Fill out below items
 
 
 Refresh Snowpipe to retrieve unloaded files
- 
+
+```
  alter pipe s3_access_logs_pipe refresh;
+```
 
 You can confirm also if snowpipe worked properly
 
+```
  select *
   from table(snowflake.information_schema.pipe_usage_history(
     date_range_start=>dateadd('day',-14,current_date()),
     date_range_end=>current_date(),
     pipe_name=>'public.s3_access_logs_pipe));
-
-
+```
 
 ###  8. Parse and transform the raw logs
 
@@ -349,6 +326,7 @@ Now that the raw data is loaded into Snowflake, we will create a custom python f
 
 Create a python user defined table function (UDTF) to process logs. This will return a table.
 
+```
 create or replace function parse_s3_access_logs(log STRING)
 returns table (
     bucketowner STRING,bucket_name STRING,requestdatetime STRING,remoteip STRING,requester STRING,
@@ -366,34 +344,33 @@ class S3AccessLogParser:
         if field == '-':
             field = None
         return field
-        
-    def process(self, log):
+            def process(self, log):
         pattern = '([^ ]*) ([^ ]*) \\[(.*?)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) (-|[0-9]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) ([^ ]*)(?: ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*))?.*$'
         lines = re.findall(pattern,log,re.M)
         for line in lines:
             yield(tuple(map(self.clean,line))) $$;
-
+```
 
   Test the parsing function if desired  
-
+```
   select parsed_logs.*
     from s3_access_logs_staging
     join table(parse_s3_access_logs(s3_access_logs_staging.raw)) parsed_logs;
-
+```
 
     Create table to hold the parsed logs
 
-
-     create or replace table s3_access_logs(
+```
+create or replace table s3_access_logs(
  bucketowner STRING,bucket_name STRING,requestdatetime STRING,remoteip STRING,requester STRING,
     requestid STRING,operation STRING,key STRING,request_uri STRING,httpstatus STRING,errorcode STRING,
     bytessent BIGINT,objectsize BIGINT,totaltime STRING,turnaroundtime STRING,referrer STRING, useragent STRING,
     versionid STRING,hostid STRING,sigv STRING,ciphersuite STRING,authtype STRING,endpoint STRING,tlsversion STRING
 );
-
+```
 Create a scheduled task that processes logs from staging table as they are ingested a task and the stream created earlier. Will run every ten minutes if there are logs in the stream.
 
-
+```
 create or replace task s3_access_logs_transformation
 warehouse = security_quickstart
 schedule = '10 minute'
@@ -405,21 +382,26 @@ insert into s3_access_logs (select parsed_logs.*
     join table(parse_s3_access_logs(s3_access_logs_stream.raw)) parsed_logs
     where s3_access_logs_stream.metadata$action = 'INSERT'
 );
+```
 --Task must be "resumed" after creation
+```
 alter task s3_access_logs_transformation resume;
-
+```
 
 ### 9 .Query the data
 
 -- Investigate who deleted which object
+```
 SELECT RequestDateTime, RemoteIP, Requester, Key 
 FROM s3_access_logs_db.mybucket_logs 
 WHERE key = 'path/to/object' AND operation like '%DELETE%';
-
+```
 -- IPs by number of requests
+```
 select count(*),REMOTEIP from s3_access_logs group by remoteip order by count(*) desc;
-
+```
 -- IPs by traffic
+```
 SELECT 
     remoteip,
     SUM(bytessent) AS uploadTotal,
@@ -428,15 +410,18 @@ SELECT
 FROM s3_access_logs
 group by REMOTEIP
 order by total desc;
-
+```
 -- Access denied errors
+```
 SELECT * FROM s3_access_logs WHERE httpstatus = '403';
 -- All actions for a specific user
 SELECT * 
 FROM s3_access_logs_db.mybucket_logs 
 WHERE requester='arn:aws:iam::123456789123:user/user_name';
-
+```
 -- Show anonymous requests
+```
 SELECT *
 FROM s3_access_logs
 WHERE Requester IS NULL;
+```
