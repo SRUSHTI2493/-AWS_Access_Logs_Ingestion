@@ -244,5 +244,84 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
 
 
 ## 6. Prepare Snowflake to receive data
+
+
+ This quickstart requires a warehouse to perform computation and ingestion. We recommend creating a separate warehouse for security related analytics if one does not exist. The following will create a medium sized single cluster 
+ warehouse that suspends after 1 minute of inactivity. For production workloads a larger warehouse will likely be required.
+
+ create warehouse security_quickstart with 
+  
+ WAREHOUSE_SIZE = MEDIUM 
  
+ AUTO_SUSPEND = 60;
+
+
+S3 Access logs are in a non-standard format which we will be parsing with a custom function later on. For now we will create a file format to import logs unparsed.
+
+
+CREATE FILE FORMAT IF NOT EXISTS TEXT_FORMAT 
+
+TYPE = 'CSV' 
+
+FIELD_DELIMITER = NONE
+
+SKIP_BLANK_LINES = TRUE
+
+ESCAPE_UNENCLOSED_FIELD = NONE;
+
+
+Create External Stage using the storage integration and test that snowflake can test files. Make sure you include the trailing slash if using a prefix.
+
+
+create stage s3_access_logs
+ 
+  url = 's3://<BUCKET_NAME>/<PREFIX>/'
+  
+  storage_integration = s3_int_s3_access_logs
+
+;
+
+
+list @s3_access_logs;
+
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/8a0ac388-47a0-4098-88f9-c5ed4a2ced83)
+
+
+Create a table to store the raw logs
+
+create table s3_access_logs_staging(
+  
+    raw TEXT,
+   
+    timestamp DATETIME
+);
+
+Create a stream on the table to track changes, this will be used to trigger processing later on
+
+
+create stream s3_access_logs_stream on table s3_access_logs_staging;
+
+Test Injection from External Stage
+
+copy into s3_access_logs_staging from (
+
+SELECT 
+
+  STG.$1,
+  
+  current_timestamp() as timestamp 
+
+FROM @s3_access_logs (FILE_FORMAT => TEXT_FORMAT) STG
+
+);
+
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/75c7cfdd-05b8-4728-871d-77c8c3036d03)
+
+
+Verify the logs were loaded properly
+
+
+select * from public.s3_access_logs_staging limit 5;
 
