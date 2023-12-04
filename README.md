@@ -55,19 +55,14 @@ Replace <RoleName> with the desired name of the role , Replace <BUCKET_NAME>/pat
 
   :red_circle: paste below code in snowflake 
   
-  create STORAGE INTEGRATION s3_int_s3_access_logs
-  
+ create STORAGE INTEGRATION s3_int_s3_access_logs
   TYPE = EXTERNAL_STAGE
-  
   STORAGE_PROVIDER = S3
-  
   ENABLED = TRUE
-  
-  STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::<AWS_ACCOUNT_NUMBER>:role/<RoleName>' 
-  
+  STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::<AWS_ACCOUNT_NUMBER>:role/<RoleName>'
   STORAGE_ALLOWED_LOCATIONS = ('s3://<BUCKET_NAME>/<PREFIX>/');
 
- DESC INTEGRATION s3_int_s3_access_logs;
+DESC INTEGRATION s3_int_s3_access_logs;
  
  
 :red_circle:   Take note of STORAGE_AWS_IAM_USER_ARN and STORAGE_AWS_EXTERNAL_ID
@@ -94,16 +89,11 @@ A screenshot showing the result of describing an integration. STORAGE_AWS_IAM_US
 
 Export the following variables, replacing the values with your own
 
-export BUCKET_NAME='<BUCKET_NAME>' # your buckt name
-
-export PREFIX='<PREFIX>' # no leading or trailing slashes, Prefix means if you added file in your buckt then give that file name in prefix.
-
+export BUCKET_NAME='<BUCKET_NAME>'
+export PREFIX='<PREFIX>' # no leading or trailing slashes
 export ROLE_NAME='<ROLE_NAME>'
-
 export STORAGE_AWS_IAM_USER_ARN='<STORAGE_AWS_IAM_USER_ARN>'
-
 export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
-
  
  :red_circle: paste this code in aws cloudshell 
 
@@ -131,39 +121,23 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
 
       
 {
-  "Version": "2012-10-17",
-
+    "Version": "2012-10-17",
     "Statement": [
-
         {
-
             "Sid": "",
-
             "Effect": "Allow",
-
             "Principal": {
-
                 "AWS": "'${STORAGE_AWS_IAM_USER_ARN}'"
-
             },
-
             "Action": "sts:AssumeRole",
-
             "Condition": {
-
                 "StringEquals": {
-
                     "sts:ExternalId": "'${STORAGE_AWS_EXTERNAL_ID}'"
-
                 }
-
             }
-
         }
-
     ]
 }
-
 
 ## 5.1 Create an inline-policy to allow snowflake to add and remove files from S3
 
@@ -186,62 +160,37 @@ export STORAGE_AWS_EXTERNAL_ID='<STORAGE_AWS_EXTERNAL_ID>'
 
 
 
- {
-     "Version": "2012-10-17",
-
+{
+    "Version": "2012-10-17",
     "Statement": [
-
         {
-
             "Effect": "Allow",
-
             "Action": [
-
               "s3:PutObject",
-
-
               "s3:GetObject",
-
               "s3:GetObjectVersion",
-
               "s3:DeleteObject",
-
               "s3:DeleteObjectVersion"
-
             ],
-            
-             "Resource": "arn:aws:s3:::'${BUCKET_NAME}'/'${PREFIX}'/*"
-
+            "Resource": "arn:aws:s3:::'${BUCKET_NAME}'/'${PREFIX}'/*"
         },
         {
             "Effect": "Allow",
-
             "Action": [
-
                 "s3:ListBucket",
-
                 "s3:GetBucketLocation"
-
             ],
-
             "Resource": "arn:aws:s3:::'${BUCKET_NAME}'",
-
             "Condition": {
-
                 "StringLike": {
-
                     "s3:prefix": [
-
                         "'${PREFIX}'/*"
-
                     ]
-
                 }
             }
         }
-   ]
+    ]
 }
-
 
 ## 6. Prepare Snowflake to receive data
 
