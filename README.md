@@ -391,3 +391,103 @@ You can confirm also if snowpipe worked properly
     date_range_start=>dateadd('day',-14,current_date()),
     date_range_end=>current_date(),
     pipe_name=>'public.s3_access_logs_pipe));
+
+
+
+###  8. Parse and transform the raw logs
+
+Now that the raw data is loaded into Snowflake, we will create a custom python function to parse and clean up the raw logs.
+
+Create a python user defined table function (UDTF) to process logs. This will return a table.
+
+create or replace function parse_s3_access_logs(log STRING)
+returns table (
+    bucketowner STRING,bucket_name STRING,requestdatetime STRING,remoteip STRING,requester STRING,
+    requestid STRING,operation STRING,key STRING,request_uri STRING,httpstatus STRING,errorcode STRING,
+    bytessent BIGINT,objectsize BIGINT,totaltime STRING,turnaroundtime STRING,referrer STRING, useragent STRING,
+    versionid STRING,hostid STRING,sigv STRING,ciphersuite STRING,authtype STRING,endpoint STRING,tlsversion STRING)
+language python
+runtime_version=3.8
+handler='S3AccessLogParser'
+as $$
+import re
+class S3AccessLogParser:
+    def clean(self,field):
+        field = field.strip(' " " ')
+        if field == '-':
+            field = None
+        return field
+        
+    def process(self, log):
+        pattern = '([^ ]*) ([^ ]*) \\[(.*?)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) (-|[0-9]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) ([^ ]*)(?: ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*))?.*$'
+        lines = re.findall(pattern,log,re.M)
+        for line in lines:
+            yield(tuple(map(self.clean,line))) $$;
+
+
+  Test the parsing function if desired  
+
+  select parsed_logs.*
+    from s3_access_logs_staging
+    join table(parse_s3_access_logs(s3_access_logs_staging.raw)) parsed_logs;
+
+
+    Create table to hold the parsed logs
+
+
+     create or replace table s3_access_logs(
+ bucketowner STRING,bucket_name STRING,requestdatetime STRING,remoteip STRING,requester STRING,
+    requestid STRING,operation STRING,key STRING,request_uri STRING,httpstatus STRING,errorcode STRING,
+    bytessent BIGINT,objectsize BIGINT,totaltime STRING,turnaroundtime STRING,referrer STRING, useragent STRING,
+    versionid STRING,hostid STRING,sigv STRING,ciphersuite STRING,authtype STRING,endpoint STRING,tlsversion STRING
+);
+
+Create a scheduled task that processes logs from staging table as they are ingested a task and the stream created earlier. Will run every ten minutes if there are logs in the stream.
+
+
+create or replace task s3_access_logs_transformation
+warehouse = security_quickstart
+schedule = '10 minute'
+when
+system$stream_has_data('s3_access_logs_stream')
+as
+insert into s3_access_logs (select parsed_logs.*
+    from s3_access_logs_stream
+    join table(parse_s3_access_logs(s3_access_logs_stream.raw)) parsed_logs
+    where s3_access_logs_stream.metadata$action = 'INSERT'
+);
+--Task must be "resumed" after creation
+alter task s3_access_logs_transformation resume;
+
+
+### 9 .Query the data
+
+-- Investigate who deleted which object
+SELECT RequestDateTime, RemoteIP, Requester, Key 
+FROM s3_access_logs_db.mybucket_logs 
+WHERE key = 'path/to/object' AND operation like '%DELETE%';
+
+-- IPs by number of requests
+select count(*),REMOTEIP from s3_access_logs group by remoteip order by count(*) desc;
+
+-- IPs by traffic
+SELECT 
+    remoteip,
+    SUM(bytessent) AS uploadTotal,
+    SUM(objectsize) AS downloadTotal,
+    SUM(ZEROIFNULL(bytessent) + ZEROIFNULL(objectsize)) AS Total
+FROM s3_access_logs
+group by REMOTEIP
+order by total desc;
+
+-- Access denied errors
+SELECT * FROM s3_access_logs WHERE httpstatus = '403';
+-- All actions for a specific user
+SELECT * 
+FROM s3_access_logs_db.mybucket_logs 
+WHERE requester='arn:aws:iam::123456789123:user/user_name';
+
+-- Show anonymous requests
+SELECT *
+FROM s3_access_logs
+WHERE Requester IS NULL;
