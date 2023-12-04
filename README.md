@@ -323,5 +323,71 @@ FROM @s3_access_logs (FILE_FORMAT => TEXT_FORMAT) STG
 Verify the logs were loaded properly
 
 
-select * from public.s3_access_logs_staging limit 5;
+#### select * from public.s3_access_logs_staging limit 5;
 
+
+## 7 6. Setup Snowpipe for continuous loading.
+
+
+ The following instructions depend on a Snowflake account running on AWS. Accounts running on other cloud providers may invoke snowpipe from a rest endpoint. https://docs.snowflake.com/en/user-guide/data-load-snowpipe-rest.html
+
+Configure the Snowflake snowpipe 
+
+
+create pipe public.s3_access_logs_pipe auto_ingest=true as
+  copy into s3_access_logs_staging from (
+    SELECT 
+      STG.$1,
+      current_timestamp() as timestamp 
+  FROM @s3_access_logs (FILE_FORMAT => TEXT_FORMAT) STG
+)
+;
+
+Show pipe to retrieve SQS queue ARN
+
+ show pipes;
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/49690f9f-72a1-4389-93c7-0b6acfea6bc2)
+
+
+#### bucket->  Target Bucket -> Open property -> Select "Create Event notification"
+
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/b477faf8-005e-4b90-b1dc-5ccc930a3dbc)
+
+
+Fill out below items
+
+:small_blue_diamond: Name: Name of the event notification (e.g. Auto-ingest Snowflake).
+
+:small_blue_diamond: Prefix(Optional) : if you receive notifications only when files are added to a specific folder (for example, logs/).
+
+:small_blue_diamond: Events: Select the ObjectCreate (All) option.
+
+:small_blue_diamond: Send to: Select "SQS Queue" from the dropdown list.
+
+:small_blue_diamond: SQS: Select "Add SQS queue ARN" from the dropdown list.
+
+:small_blue_diamond: SQS queue ARN: Paste the SQS queue name from the SHOW PIPES output.
+
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/c0e8340f-efba-46a5-b31e-eba6471a48cb)
+
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/cb30e404-e5b5-4845-b9c5-9609c35d877f)
+
+
+![image](https://github.com/SRUSHTI2493/-AWS_Access_Logs_Ingestion/assets/87080882/0f20213f-99a1-470f-9695-42e4361b182a)
+
+
+Refresh Snowpipe to retrieve unloaded files
+ 
+ alter pipe s3_access_logs_pipe refresh;
+
+You can confirm also if snowpipe worked properly
+
+ select *
+  from table(snowflake.information_schema.pipe_usage_history(
+    date_range_start=>dateadd('day',-14,current_date()),
+    date_range_end=>current_date(),
+    pipe_name=>'public.s3_access_logs_pipe));
